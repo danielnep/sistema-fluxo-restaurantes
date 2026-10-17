@@ -1,5 +1,5 @@
 function localUUID(){const b=new Uint8Array(16);crypto.getRandomValues(b);b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;return Array.from(b,(x,i)=>([4,6,8,10].includes(i)?'-':'')+x.toString(16).padStart(2,'0')).join('')}
-const app=document.querySelector('#app');let me=null,state=null,screen='home',eventSource=null,cart={},category='Todos',search='',checkoutWaiter='',tableNo='',orderNotes='',productNotes={},lastRevision=0,pulseTimer=null,orderRequestId=localUUID();const roleName={manager:'Gerência',kitchen:'Cozinha',waiter:'Garçom',cashier:'Caixa'};
+const app=document.querySelector('#app');let me=null,state=null,screen='home',eventSource=null,cart={},category='Todos',search='',checkoutWaiter='',tableNo='',orderNotes='',productNotes={},lastRevision=0,pulseTimer=null,orderRequestId=localUUID();let demoProfiles=[];const roleName={manager:'Gerência',kitchen:'Cozinha',waiter:'Garçom',cashier:'Caixa'};
 const e=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>(n/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});const clock=s=>s?new Date(s).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'—';
 const fmtDate=s=>s?new Date(s).toLocaleString('pt-BR'):'—';const mins=s=>s?Math.max(0,Math.floor((Date.now()-Date.parse(s))/60000))+' min':'—';
