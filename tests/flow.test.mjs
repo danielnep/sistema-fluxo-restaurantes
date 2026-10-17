@@ -16,6 +16,10 @@ test('fluxo completo: autenticação, chegada, pedido, preparo, retirada, entreg
 const manager=await login('admin'),kitchen=await login('cozinha'),waiter=await login('carlos'),cashier=await login('caixa');
 const profiles=await request('demo/profiles');assert.equal(profiles.status,200);
 assert.equal(profiles.data.profiles.length,5);
+const switchedKitchen=await request('demo/switch',{profile:'cozinha'});assert.equal(switchedKitchen.status,200);
+assert.equal(switchedKitchen.data.user.role,'kitchen');
+const kitchenDemoState=await request('state',undefined,switchedKitchen.cookie);
+assert.equal(kitchenDemoState.data.me.role,'kitchen');
 const state1=await request('state',undefined,manager);assert.equal(state1.status,200);assert.equal(state1.data.products.length,8);
 let anon=await request('orders',{table_no:'1',items:[]});assert.equal(anon.status,401);
 let newUser=await request('auth/register',{username:'novogarcom',display_name:'Novo Garçom',password:'p45678'});assert.equal(newUser.status,201);let denied=await request('auth/login',{username:'novogarcom',password:'p45678'});assert.equal(denied.status,403);
