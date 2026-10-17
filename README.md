@@ -2,6 +2,16 @@
 
 **Estado:** versão web de testes v0.2, com aplicação por papéis, persistência SQLite, rede local, contingência e sincronização cloud; sem APK e sem publicação em produção.
 
+## Acesso online para testes
+
+- GitHub Pages (encaminha para o servidor): https://danielnep.github.io/sistema-fluxo-restaurantes/is
+- Aplicativo web com API ativa: https://restaurantes-teste-production.up.railway.app/
+- Contas **exclusivamente de demonstração**: `admin`, `cozinha`, `caixa`, `carlos`, `marina`, com senha `demo1234`.
+- Instância temporária no Railway, com dados fictícios e banco não persistido por volume nesta etapa: pode reiniciar e perder os registros. Não usar dados de clientes.
+- A implantação local em um computador do restaurante, com Wi-Fi funcionando mesmo sem internet externa, é outro modo previsto no mesmo código. **Ainda não foi homologado com aparelhos físicos.**
+
+O GitHub Pages não executa Node.js e SQLite. Por isso, os arquivos `index.html` e `is/index.html` apenas encaminham para o aplicativo servido pelo Railway.
+
 ## Arquitetura
 
 O **terminal central** executa `server.mjs` e guarda os dados em SQLite local com WAL. Celulares conectados ao **mesmo Wi-Fi** abrem pelo navegador `http://IP-DO-CAIXA:3050`. O roteador não precisa ter acesso à internet para pedidos, fila da cozinha e chamadas em telas abertas. O terminal central precisa estar ligado e acessível.
