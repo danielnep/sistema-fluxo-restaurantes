@@ -139,7 +139,7 @@ function openSession(req,res,u){
 function route(method,pathname,user,body,req,res){
 if(pathname==='/api/demo/profiles'&&method==='GET'){
  if(!DEMO||CLOUD_MODE)throw bad(404,'Demonstração indisponível');
- write(res,200,{profiles:enabledDemoProfiles().map(({profile,label,role})=>({profile,label,role}))});return;
+ write(res,200,{profiles:enabledDemoProfiles().map(({profile,label,role,username})=>({profile,label,role,username}))});return;
 }
 if(pathname==='/api/demo/switch'&&method==='POST'){
  if(!DEMO||CLOUD_MODE)throw bad(404,'Demonstração indisponível');
