@@ -49,6 +49,17 @@ return `${title('Inteligência operacional','Métricas e recomendações explic�
 <div class="panel"><h2>Registro de alterações</h2>${state.audit.slice(0,15).map(a=>`<div class="row" style="padding:8px 0;border-bottom:1px solid #f0f3f7;font-size:12px"><span>${e(a.actor_name||'Sistema')} · ${e(a.action)} #${e(a.entity_id)}</span><span class="muted">${clock(a.ts)}</span></div>`).join('')||'<p class="sub">Sem eventos.</p>'}</div></div>`}
 function noticesScreen(){const notices=state.notices||[];return `${title('Avisos da operação','Notificações persistentes até serem lidas.')}<div class="flowlist">${notices.length?notices.map(n=>`<div class="entry"><div class="grow"><div class="row wrap"><h3>${e(n.title)}</h3>${n.read?pill('Lido'):pill('Novo','amber')}</div><p>${e(n.message)}</p><p>${fmtDate(n.ts)}</p></div>${!n.read?btn('Li o aviso','notice-read:'+n.id,'small primary'):''}</div>`).join(''):'Nenhum aviso registrado.'}</div>`}
 function historyScreen(){let data=me.role==='waiter'?state.orders.filter(o=>o.waiter_id===me.id):state.orders;return `${title('Histórico de pedidos','Comandas registradas e estados atualizados.')}${listOrders(data)}`}
+async function switchDemo(profile){
+ if(!demoProfiles.some(p=>p.profile===profile))throw Error('Perfil de demonstração indisponível');
+ const r=await post('demo/switch',{profile});
+ eventSource?.close();
+ if(pulseTimer)clearInterval(pulseTimer);
+ me=r.user;state=null;screen='home';cart={};category='Todos';search='';
+ checkoutWaiter='';tableNo='';orderNotes='';productNotes={};orderRequestId=localUUID();
+ await refresh();connect();startPulse();
+ const url=new URL(location.href);url.searchParams.set('perfil',profile);
+ history.replaceState(null,'',url.pathname+url.search);
+}
 async function refresh(){try{const s=await api('state');if(state&&me&&['waiter','cashier','manager'].includes(me.role)){for(const p of s.products){const old=state.products.find(x=>x.id===p.id);if(old&&old.available!==p.available)toast(`${p.name}: ${p.available?'disponível novamente':'indisponível na cozinha'}`)}}state=s;me=s.me;if(!me){loginPage();return}lastRevision=s.revision;layout()}catch(err){if(err.message==='Entre no sistema'){me=null;state=null;eventSource?.close();loginPage()}else toast(err.message,true)}}
 function connect(){eventSource?.close();eventSource=new EventSource('/api/events');eventSource.addEventListener('change',event=>{let x=JSON.parse(event.data);if(x.revision!==lastRevision)refresh()});eventSource.addEventListener('connected',event=>{let x=JSON.parse(event.data);if(x.revision!==lastRevision)refresh()});eventSource.onerror=()=>{};}
 let deviceId=localStorage.getItem('fluxo-device-id');if(!deviceId){deviceId=localUUID();localStorage.setItem('fluxo-device-id',deviceId)}
