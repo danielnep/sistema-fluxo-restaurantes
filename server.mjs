@@ -15,6 +15,14 @@ const SYNC_TOKEN = process.env.SYNC_TOKEN || '';
 const CLOUD_SYNC_URL = process.env.CLOUD_SYNC_URL || '';
 const DEMO = process.env.DEMO_MODE === '1';
 const COOKIE_SECURE = process.env.COOKIE_SECURE === '1';
+// Perfis exclusivos do banco fictício. Nunca habilitar DEMO_MODE para dados reais.
+const DEMO_ACCOUNTS=Object.freeze([
+  {profile:'gerencia',username:'admin',role:'manager',label:'Gerência'},
+  {profile:'cozinha',username:'cozinha',role:'kitchen',label:'Cozinha'},
+  {profile:'caixa',username:'caixa',role:'cashier',label:'Caixa'},
+  {profile:'garcom',username:'carlos',role:'waiter',label:'Garçom Carlos'},
+  {profile:'garcom2',username:'marina',role:'waiter',label:'Garçom Marina'}
+]);
 const db = new DatabaseSync(DB_PATH);
 db.exec(`PRAGMA journal_mode=WAL;PRAGMA busy_timeout=5000;PRAGMA foreign_keys=ON;
 CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY,username TEXT NOT NULL UNIQUE,display_name TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN('manager','kitchen','cashier','waiter')),passhash TEXT NOT NULL,approved INTEGER NOT NULL DEFAULT 0,active INTEGER NOT NULL DEFAULT 1,created_at TEXT NOT NULL);
@@ -113,8 +121,35 @@ const syncTables=['users','shifts','products','orders','order_items','dispatches
 const snapshotSync=()=>Object.fromEntries(syncTables.map(t=>[t,all('SELECT * FROM '+t)]));
 function applySync(payload){if(!CLOUD_MODE)throw bad(403,'Sincronização recebida apenas na nuvem');if(!payload||payload.hub!==HUB_ID)throw bad(400,'Identificação do estabelecimento incorreta');const latest=Number(get("SELECT value FROM meta WHERE key='sync_revision'")?.value||0);if(payload.revision<=latest)return {revision:latest,unchanged:true};db.exec('BEGIN IMMEDIATE');try{for(const t of syncTables){const rows=payload.tables?.[t];if(!Array.isArray(rows))throw bad(400,'Tabela ausente: '+t);db.exec('DELETE FROM '+t);for(const row of rows){const keys=Object.keys(row);if(!keys.length)continue;run(`INSERT INTO ${t} (${keys.join(',')}) VALUES (${keys.map(()=>'?').join(',')})`,...keys.map(k=>row[k]));}}run("INSERT INTO meta(key,value) VALUES ('sync_revision',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",String(payload.revision));run("INSERT INTO meta(key,value) VALUES ('synced_at',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",now());db.exec('COMMIT')}catch(e){db.exec('ROLLBACK');throw e}bump('cloud_sync');return {revision:payload.revision}}
 let syncing=false;async function cloudSync(){if(CLOUD_MODE||!CLOUD_SYNC_URL||!SYNC_TOKEN||syncing)return;syncing=true;try{const rev=revision();const synced=Number(get("SELECT value FROM meta WHERE key='last_pushed_revision'")?.value||0);if(rev===synced)return;const url=CLOUD_SYNC_URL.replace(/\/$/,'')+'/api/sync/push';if(!/^https:\/\//.test(url)&&!/^http:\/\/localhost/.test(url))throw Error('CLOUD_SYNC_URL precisa usar HTTPS');const r=await fetch(url,{method:'POST',headers:{'content-type':'application/json','authorization':'Bearer '+SYNC_TOKEN},body:JSON.stringify({hub:HUB_ID,revision:rev,tables:snapshotSync()}),signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error('Cloud sync: HTTP '+r.status);run("INSERT INTO meta(key,value) VALUES ('last_pushed_revision',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",String(rev));run("INSERT INTO meta(key,value) VALUES ('synced_at',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",now());}catch(e){console.error('Sync pendente:',e.message)}finally{syncing=false}}
+function enabledDemoProfiles(){
+ if(!DEMO||CLOUD_MODE)return [];
+ return DEMO_ACCOUNTS.filter(p=>{
+  const u=get('SELECT * FROM users WHERE username=? AND role=? AND approved=1 AND active=1',p.username,p.role);
+  return !!u&&verifyPassword('demo1234',u.passhash);
+ });
+}
+function openSession(req,res,u){
+ const cookie=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('fluxo_session='));
+ if(cookie)run('DELETE FROM sessions WHERE token_hash=?',sha(cookie.slice(14)));
+ if(u.role==='waiter')run('DELETE FROM sessions WHERE user_id=?',u.id);
+ const token=crypto.randomBytes(32).toString('hex');
+ run('INSERT INTO sessions(token_hash,user_id,expires_at) VALUES (?,?,?)',sha(token),u.id,Date.now()+14*24*3600*1000);
+ write(res,200,{user:publicUser(u)},{'Set-Cookie':`fluxo_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=1209600${COOKIE_SECURE?'; Secure':''}`});
+}
 function route(method,pathname,user,body,req,res){
-if(pathname==='/api/auth/login'&&method==='POST'){const ip=req.socket.remoteAddress||'unknown';rateLimitLogin(ip);const u=get(`SELECT * FROM users WHERE username=? AND active=1`,String(body.username||'').trim().toLowerCase());if(!u||!verifyPassword(String(body.password||''),u.passhash)){rememberFailure(ip);throw bad(401,'Usuário ou senha inválidos')};failedLogins.delete(ip);if(!u.approved)throw bad(403,'Cadastro aguardando aprovação');if(u.role==='waiter')run('DELETE FROM sessions WHERE user_id=?',u.id);const token=crypto.randomBytes(32).toString('hex');run('INSERT INTO sessions(token_hash,user_id,expires_at) VALUES (?,?,?)',sha(token),u.id,Date.now()+14*24*3600*1000);write(res,200,{user:publicUser(u)},{'Set-Cookie':`fluxo_session=${token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=1209600${COOKIE_SECURE?'; Secure':''}`});return;}
+if(pathname==='/api/demo/profiles'&&method==='GET'){
+ if(!DEMO||CLOUD_MODE)throw bad(404,'Demonstração indisponível');
+ write(res,200,{profiles:enabledDemoProfiles().map(({profile,label,role})=>({profile,label,role}))});return;
+}
+if(pathname==='/api/demo/switch'&&method==='POST'){
+ if(!DEMO||CLOUD_MODE)throw bad(404,'Demonstração indisponível');
+ const target=enabledDemoProfiles().find(p=>p.profile===body.profile);
+ if(!target)throw bad(404,'Perfil de demonstração indisponível');
+ const u=get('SELECT * FROM users WHERE username=? AND role=? AND approved=1 AND active=1',target.username,target.role);
+ if(!u)throw bad(404,'Conta de demonstração não encontrada');
+ openSession(req,res,u);return;
+}
+if(pathname==='/api/auth/login'&&method==='POST'){const ip=req.socket.remoteAddress||'unknown';rateLimitLogin(ip);const u=get(`SELECT * FROM users WHERE username=? AND active=1`,String(body.username||'').trim().toLowerCase());if(!u||!verifyPassword(String(body.password||''),u.passhash)){rememberFailure(ip);throw bad(401,'Usuário ou senha inválidos')};failedLogins.delete(ip);if(!u.approved)throw bad(403,'Cadastro aguardando aprovação');openSession(req,res,u);return;}
 if(pathname==='/api/auth/register'&&method==='POST'){if(CLOUD_MODE)throw bad(403,'Registre-se no terminal local');const role=body.role==='waiter'?'waiter':'waiter';const id=createUser(String(body.username||'').trim().toLowerCase(),String(body.display_name||''),role,String(body.password||''));audit(null,'registration_requested','user',id);bump('users');write(res,201,{ok:true,message:'Cadastro enviado à gerência para aprovação.'});return;}
 if(pathname==='/api/auth/logout'&&method==='POST'){const cookie=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('fluxo_session='));if(cookie)run('DELETE FROM sessions WHERE token_hash=?',sha(cookie.slice(14)));write(res,200,{ok:true},{'Set-Cookie':'fluxo_session=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0'});return;}
 if(pathname==='/api/sync/push'&&method==='POST'){if(!SYNC_TOKEN||req.headers.authorization!=='Bearer '+SYNC_TOKEN)throw bad(401,'Token de sincronização inválido');write(res,200,applySync(body));return;}
