@@ -13,6 +13,20 @@ async function wait(){for(let i=0;i<35;i++){try{const r=await fetch(base+'/');if
 async function request(route,data,cookie){let r=await fetch(base+'/api/'+route,{method:data===undefined?'GET':'POST',headers:{'content-type':'application/json',...(cookie?{'cookie':cookie}:{})},body:data===undefined?undefined:JSON.stringify(data)});let body=await r.json();return {status:r.status,data:body,cookie:r.headers.get('set-cookie')?.split(';')[0]};}
 async function login(username){const r=await request('auth/login',{username,password:'demo1234'});assert.equal(r.status,200,JSON.stringify(r.data));return r.cookie}
 test('fluxo completo: autenticação, chegada, pedido, preparo, retirada, entrega, disponibilidade e indicadores',async()=>{await wait();try{
+const staticAssets=[
+ {route:'/',contentType:/^text\/html\b/,marker:/id=["']app["']/},
+ {route:'/app.js',contentType:/^application\/javascript\b/},
+ {route:'/styles.css',contentType:/^text\/css\b/},
+ {route:'/mobile.css',contentType:/^text\/css\b/}
+];
+for(const asset of staticAssets){
+ const response=await fetch(base+asset.route);
+ assert.equal(response.status,200,`${asset.route} deve responder HTTP 200`);
+ assert.match(response.headers.get('content-type')||'',asset.contentType,`${asset.route} deve retornar o Content-Type esperado`);
+ const body=await response.text();
+ assert.ok(body.length>0,`${asset.route} deve retornar conteúdo`);
+ if(asset.marker)assert.match(body,asset.marker,`${asset.route} deve conter o shell da aplicação`);
+}
 const manager=await login('admin'),kitchen=await login('cozinha'),waiter=await login('carlos'),cashier=await login('caixa');
 const profiles=await request('demo/profiles');assert.equal(profiles.status,200);
 assert.equal(profiles.data.profiles.length,5);
