@@ -5,12 +5,12 @@
 ## Acesso online para testes
 
 - GitHub Pages (encaminha para o servidor): https://danielnep.github.io/sistema-fluxo-restaurantes/is
-- Aplicativo web com API ativa: https://restaurantes-teste-production.up.railway.app/
+- Aplicativo web com API ativa: https://fluxo.hzsys.tech/
 - Contas **exclusivamente de demonstração**: `admin`, `cozinha`, `caixa`, `carlos`, `marina`, com senha `demo1234`.
-- Instância temporária no Railway, com dados fictícios e banco não persistido por volume nesta etapa: pode reiniciar e perder os registros. Não usar dados de clientes.
+- Instância de demonstração na VPS Hostinger, gerenciada pelo Coolify, com HTTPS e volume persistente SQLite. Não usar dados de clientes.
 - A implantação local em um computador do restaurante, com Wi-Fi funcionando mesmo sem internet externa, é outro modo previsto no mesmo código. **Ainda não foi homologado com aparelhos físicos.**
 
-O GitHub Pages não executa Node.js e SQLite. Por isso, os arquivos `index.html` e `is/index.html` apenas encaminham para o aplicativo servido pelo Railway.
+O GitHub Pages não executa Node.js e SQLite. Por isso, os arquivos `index.html` e `is/index.html` apenas encaminham para o aplicativo servido pela VPS em `fluxo.hzsys.tech`.
 
 ## Arquitetura
 
@@ -62,7 +62,7 @@ Contas de demonstração: `admin`, `cozinha`, `caixa`, `carlos`, `marina`; senha
 
 1. **Sem APK nesta fase**: navegador não entrega as mesmas garantias de vibração, monitoramento de bateria, notificações de tela bloqueada e execução em segundo plano de um app Android nativo. Esta versão é para testar fluxos, dados e interface. Esses recursos exigem etapa posterior de APK/Android.
 2. Na rede local, HTTPS e certificado confiável são recomendados para uso operacional; cookies de sessão neste protótipo LAN ainda podem circular em HTTP. **Não usar em produção com dados reais sem configurar HTTPS**, controle de rede e endurecimento de segurança.
-3. Nuvem não foi provisionada. Configurar hospedagem persistente, TLS, segredos, backups, monitoramento, limites de requisições e política de restauração antes de colocar clientes.
+3. A demonstração na VPS possui hospedagem persistente e TLS. Validar segredos, backups, monitoramento, limites de requisições e restauração antes de colocar clientes. O espelho cloud é uma implantação separada.
 4. Filtros gerenciais são inicialmente operacionais, não representam contabilidade/faturamento nem integração fiscal. Não há PDV ou pagamento nesta versão.
 5. Reconciliação de múltiplos hubs, operação simultânea em vários locais, notificações nativas push, fila de múltiplos setores e sincronização bidirecional não foram implementadas.
 6. Bateria via `navigator.getBattery()` não está disponível em todos os navegadores; o APK futuro utilizará API nativa e permissões adequadas. Leitura desatualizada não prova a bateria atual.
